@@ -7,6 +7,8 @@ require (
 	github.com/grafana/loki/v3 v3.6.4
 	github.com/mark3labs/mcp-go v0.43.2
 	github.com/prometheus/prometheus v0.305.1-0.20250806170547-208187eaa19b
+	github.com/sirupsen/logrus v1.9.4
+	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.40.0
 )
@@ -131,6 +133,7 @@ require (
 	github.com/hashicorp/memberlist v0.5.3 // indirect
 	github.com/hashicorp/serf v0.10.2 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/influxdata/tdigest v0.0.2-0.20210216194612-fc98d27c9e8b // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/jaegertracing/jaeger-idl v0.5.0 // indirect
@@ -198,9 +201,9 @@ require (
 	github.com/sercand/kuberesolver/v6 v6.0.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.25.9 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sony/gobreaker/v2 v2.3.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tjhop/slog-gokit v0.1.4 // indirect
 	github.com/tklauser/go-sysconf v0.3.15 // indirect
