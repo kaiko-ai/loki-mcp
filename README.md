@@ -4,31 +4,27 @@
 
 A Go-based server implementation for the Model Context Protocol (MCP) with Grafana Loki integration.
 
-## Getting Started
+## Installation
 
-### Prerequisites
-
-- Go 1.21 or higher
-
-### Building and Running
-
-Build and run the server:
+### Option 1: Go Install
 
 ```bash
-# Build the server
+go install github.com/grafana/loki-mcp/cmd/loki-mcp@latest
+```
+
+### Option 2: Download Release Binary
+
+Download the pre-built binary for your platform from the [Releases page](https://github.com/grafana/loki-mcp/releases).
+
+### Option 3: Build from Source
+
+```bash
+git clone https://github.com/grafana/loki-mcp.git
+cd loki-mcp
 go build -o loki-mcp ./cmd/loki-mcp
-
-# Run the server
-./loki-mcp
 ```
 
-Or run directly with Go:
-
-```bash
-go run ./cmd/loki-mcp
-```
-
-The server communicates using stdin/stdout and SSE following the Model Context Protocol (MCP). This makes it suitable for use with Claude Desktop and other MCP-compatible clients.
+The server communicates using stdin/stdout and SSE following the Model Context Protocol (MCP). This makes it suitable for use with Claude Code, Claude Desktop, and other MCP-compatible clients.
 
 ## Project Structure
 
@@ -184,141 +180,91 @@ The Loki MCP Server uses a modular architecture:
 - **Handlers**: Individual tool handlers in `internal/handlers/`
   - `loki.go`: Grafana Loki query functionality
 
-## Using with Claude Desktop
+## Using with Claude Code
 
-You can use this MCP server with Claude Desktop to add Loki query tools. Follow these steps:
+Add the MCP server to your Claude Code configuration using the CLI:
 
-### Option 1: Using the Compiled Binary
-
-1. Build the server:
 ```bash
-go build -o loki-mcp ./cmd/loki-mcp
+claude mcp add loki-mcp -- loki-mcp
 ```
 
-2. Add the configuration to your Claude Desktop configuration file using `claude_desktop_config_binary.json`.
+Or with environment variables:
 
-### Option 2: Using Docker (Recommended)
-
-1. Build the Docker image:
 ```bash
-docker build -t loki-mcp .
+claude mcp add loki-mcp -e LOKI_URL=http://localhost:3100 -e LOKI_ORG_ID=your-org-id -- loki-mcp
 ```
 
-2. Add the configuration to your Claude Desktop configuration file using `claude_desktop_config_docker.json`.
-
-### Configuration Details
-
-The Claude Desktop configuration file is located at:
-- On macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- On Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-- On Linux: `~/.config/Claude/claude_desktop_config.json`
-
-You can use one of the example configurations provided in this repository:
-- `claude_desktop_config.json`: Generic template using `go run`
-- `claude_desktop_config_binary.json`: Example using the compiled binary
-- `claude_desktop_config_docker.json`: Example using Docker (most reliable)
-
-**Notes**:
-- When using `go run` with Claude Desktop, you may need to set several environment variables in the configuration file:
-  - `HOME`: The user's home directory
-  - `GOPATH`: The Go workspace directory
-  - `GOMODCACHE`: The Go module cache directory
-  - `GOCACHE`: The Go build cache directory
-
-  These are required to ensure Go can find its modules and build cache when run from Claude Desktop.
-
-- Using Docker is the most reliable approach as it packages all dependencies and environment variables in a container.
-
-Or create your own configuration:
-
-```json
-{
-  "mcpServers": {
-    "lokiserver": {
-      "command": "path/to/loki-mcp",
-      "args": [],
-      "env": {
-        "LOKI_URL": "http://localhost:3100",
-        "LOKI_ORG_ID": "your-default-org-id",
-        "LOKI_USERNAME": "your-username",
-        "LOKI_PASSWORD": "your-password",
-        "LOKI_TOKEN": "your-bearer-token"
-      },
-      "disabled": false,
-      "autoApprove": ["loki_query"]
-    }
-  }
-}
-```
-
-Make sure to replace `path/to/loki-mcp` with the absolute path to the built binary.
-
-4. Restart Claude Desktop.
-
-5. You can now use the tools in Claude:
-   - Loki query examples:
-     - "Query Loki for logs with the query {job=\"varlogs\"}"
-     - "Find error logs from the last hour in Loki using query {job=\"varlogs\"} |= \"ERROR\""
-     - "Show me the most recent 50 logs from Loki with job=varlogs"
-     - "Query Loki for logs with org 'tenant-123' using query {job=\"varlogs\"}"
-
-### Using Organization ID in Natural Language Prompts
-
-When using this MCP server with Claude Desktop or other AI assistants, users can naturally mention the organization ID in their prompts in several ways:
-
-#### Direct Organization Reference
-- **"Query Loki for logs from organization 'tenant-123' with the query {job=\"varlogs\"}"**
-- **"Search Loki logs for org 'production-env' using {job=\"web\"}"**
-- **"Get logs from organization ID 'client-abc' matching {service=\"api\"}"**
-
-#### Contextual Organization Mentions
-- **"Check the error logs for our production tenant (org: prod-001) using query {level=\"error\"}"**
-- **"Find all logs from customer organization 'customer-xyz' for the last hour"**
-- **"Query Loki with org tenant-456 to find logs matching {job=\"backend\"}"**
-
-#### Multi-tenant Scenarios
-- **"Switch to organization 'dev-team' and query {job=\"logs\"} for debugging"**
-- **"Use org 'staging-env' to search for warning logs in the last 2 hours"**
-- **"Search logs in tenant 'qa-environment' for any error messages"**
-
-#### Combined with Other Parameters
-- **"Query Loki for organization 'prod-cluster' from 2 hours ago to now with limit 50"**
-- **"Get the last 100 logs from org 'microservice-team' for query {app=\"payment\"}"**
-
-When you mention any of these natural language prompts, the AI assistant will automatically map terms like "organization", "org", "tenant", or "organization ID" to the `org` parameter in the Loki query tool, which gets sent as the `X-Scope-OrgID` header to your Loki server for proper multi-tenant filtering.
-
-The key is to naturally mention any specific parameters in your request - the AI will understand how to map them to the appropriate Loki query tool parameters. When parameters are not explicitly mentioned, the system will automatically use defaults from environment variables:
-- `LOKI_URL` for the Loki server URL
-- `LOKI_ORG_ID` for the organization ID
-- `LOKI_USERNAME` and `LOKI_PASSWORD` for basic authentication
-- `LOKI_TOKEN` for bearer token authentication
-
-This makes it very convenient to set up default connection parameters once and then use natural language queries without having to specify authentication details every time.
-
-## Using with Cursor
-
-You can also integrate the Loki MCP server with the Cursor editor. To do this, add the following configuration to your Cursor settings:
-
-Docker configuration:
+This adds the configuration to your `~/.claude/settings.json`. You can also manually edit the file:
 
 ```json
 {
   "mcpServers": {
     "loki-mcp": {
-      "command": "docker",
-      "args": ["run", "--rm", "-i",
-               "-e", "LOKI_URL=http://host.docker.internal:3100",
-               "-e", "LOKI_ORG_ID=your-default-org-id",
-               "-e", "LOKI_USERNAME=your-username",
-               "-e", "LOKI_PASSWORD=your-password",
-               "-e", "LOKI_TOKEN=your-bearer-token",
-               "loki-mcp:latest"]
+      "command": "loki-mcp",
+      "args": [],
+      "env": {
+        "LOKI_URL": "http://localhost:3100",
+        "LOKI_ORG_ID": "your-org-id"
+      }
     }
   }
 }
 ```
 
-After adding this configuration, restart Cursor, and you'll be able to use the Loki query tool directly within the editor.
+## Using with Claude Desktop
+
+Add the following to your Claude Desktop configuration file:
+
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+- Linux: `~/.config/Claude/claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "loki-mcp": {
+      "command": "loki-mcp",
+      "args": [],
+      "env": {
+        "LOKI_URL": "http://localhost:3100",
+        "LOKI_ORG_ID": "your-org-id"
+      }
+    }
+  }
+}
+```
+
+Restart Claude Desktop after updating the configuration.
+
+## Example Queries
+
+Once configured, you can use natural language to query Loki:
+
+- "Query Loki for logs with the query {job=\"varlogs\"}"
+- "Find error logs from the last hour using {job=\"varlogs\"} |= \"ERROR\""
+- "Show me the most recent 50 logs from job=varlogs"
+- "Query Loki for logs with org 'tenant-123' using {job=\"varlogs\"}"
+
+## Using with Cursor
+
+Add the following to your Cursor MCP settings (`.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "loki-mcp": {
+      "command": "loki-mcp",
+      "args": [],
+      "env": {
+        "LOKI_URL": "http://localhost:3100",
+        "LOKI_ORG_ID": "your-org-id"
+      }
+    }
+  }
+}
+```
+
+Restart Cursor after adding the configuration.
 
 ## License
 
