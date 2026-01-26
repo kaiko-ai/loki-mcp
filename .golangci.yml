@@ -16,9 +16,9 @@ formatters:
   enable:
     - gofmt
     - goimports
-
-formatters-settings:
-  gofmt:
-    simplify: true
-  goimports:
-    local-prefixes: github.com/grafana/loki-mcp
+  settings:
+    gofmt:
+      simplify: true
+    goimports:
+      local-prefixes:
+        - github.com/grafana/loki-mcp
