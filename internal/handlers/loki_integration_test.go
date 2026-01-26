@@ -696,3 +696,301 @@ func TestIntegration_LokiLabelValues_AllFormats(t *testing.T) {
 		})
 	}
 }
+
+// ============================================================================
+// Query Filter Tests
+// ============================================================================
+
+func TestIntegration_QueryFilter_RestrictsQueryResults(t *testing.T) {
+	ctx := context.Background()
+	testID := UniqueTestID()
+
+	// Insert logs with different namespaces
+	timestamp := time.Now().Add(-30 * time.Second)
+	streams := []LokiStream{
+		{
+			Stream: map[string]string{
+				"job":       "api",
+				"namespace": "allowed",
+				"test_id":   testID,
+			},
+			Values: [][]string{
+				{makeTimestampNs(timestamp), "Allowed namespace log"},
+			},
+		},
+		{
+			Stream: map[string]string{
+				"job":       "api",
+				"namespace": "restricted",
+				"test_id":   testID,
+			},
+			Values: [][]string{
+				{makeTimestampNs(timestamp.Add(1 * time.Second)), "Restricted namespace log"},
+			},
+		},
+	}
+
+	err := PushLogs(ctx, lokiContainer.Endpoint, streams)
+	require.NoError(t, err, "Failed to push logs")
+
+	time.Sleep(2 * time.Second)
+
+	// Set up query filter to only allow "allowed" namespace
+	ResetFilterConfig()
+	err = InitializeFilterConfig(fmt.Sprintf(`{namespace="allowed", test_id="%s"}`, testID))
+	require.NoError(t, err, "Failed to initialize filter config")
+	defer ResetFilterConfig()
+
+	// Query for all logs with the test ID - filter should restrict results
+	request := NewCallToolRequest("loki_query", map[string]interface{}{
+		"query":  fmt.Sprintf(`{test_id="%s"}`, testID),
+		"url":    lokiContainer.Endpoint,
+		"format": "text",
+		"start":  "-5m",
+		"end":    "now",
+	})
+
+	result, err := HandleLokiQuery(ctx, request)
+	require.NoError(t, err, "HandleLokiQuery failed")
+
+	text := extractTextContent(result)
+	assert.Contains(t, text, "Allowed namespace log", "Should contain allowed namespace log")
+	assert.NotContains(t, text, "Restricted namespace log", "Should NOT contain restricted namespace log")
+}
+
+func TestIntegration_QueryFilter_MergesWithClientQuery(t *testing.T) {
+	ctx := context.Background()
+	testID := UniqueTestID()
+
+	// Insert logs with different jobs and namespaces
+	timestamp := time.Now().Add(-30 * time.Second)
+	streams := []LokiStream{
+		{
+			Stream: map[string]string{
+				"job":       "api",
+				"namespace": "prod",
+				"test_id":   testID,
+			},
+			Values: [][]string{
+				{makeTimestampNs(timestamp), "prod-api log"},
+			},
+		},
+		{
+			Stream: map[string]string{
+				"job":       "worker",
+				"namespace": "prod",
+				"test_id":   testID,
+			},
+			Values: [][]string{
+				{makeTimestampNs(timestamp.Add(1 * time.Second)), "prod-worker log"},
+			},
+		},
+		{
+			Stream: map[string]string{
+				"job":       "api",
+				"namespace": "staging",
+				"test_id":   testID,
+			},
+			Values: [][]string{
+				{makeTimestampNs(timestamp.Add(2 * time.Second)), "staging-api log"},
+			},
+		},
+	}
+
+	err := PushLogs(ctx, lokiContainer.Endpoint, streams)
+	require.NoError(t, err, "Failed to push logs")
+
+	time.Sleep(2 * time.Second)
+
+	// Set up query filter for prod namespace
+	ResetFilterConfig()
+	err = InitializeFilterConfig(fmt.Sprintf(`{namespace="prod", test_id="%s"}`, testID))
+	require.NoError(t, err, "Failed to initialize filter config")
+	defer ResetFilterConfig()
+
+	// Client queries for job="api" - should only get prod-api, not staging-api
+	request := NewCallToolRequest("loki_query", map[string]interface{}{
+		"query":  `{job="api"}`,
+		"url":    lokiContainer.Endpoint,
+		"format": "text",
+		"start":  "-5m",
+		"end":    "now",
+	})
+
+	result, err := HandleLokiQuery(ctx, request)
+	require.NoError(t, err, "HandleLokiQuery failed")
+
+	text := extractTextContent(result)
+	assert.Contains(t, text, "prod-api log", "Should contain prod-api log")
+	assert.NotContains(t, text, "staging-api log", "Should NOT contain staging-api log")
+	assert.NotContains(t, text, "prod-worker log", "Should NOT contain prod-worker log (wrong job)")
+}
+
+func TestIntegration_QueryFilter_LabelNamesRespectFilter(t *testing.T) {
+	ctx := context.Background()
+	testID := UniqueTestID()
+
+	// Insert logs with unique labels per namespace
+	timestamp := time.Now().Add(-30 * time.Second)
+	streams := []LokiStream{
+		{
+			Stream: map[string]string{
+				"job":              "api",
+				"namespace":        "filtered-ns",
+				"unique_label_one": "value1",
+				"test_id":          testID,
+			},
+			Values: [][]string{
+				{makeTimestampNs(timestamp), "filtered namespace log"},
+			},
+		},
+		{
+			Stream: map[string]string{
+				"job":              "api",
+				"namespace":        "other-ns",
+				"unique_label_two": "value2",
+				"test_id":          testID,
+			},
+			Values: [][]string{
+				{makeTimestampNs(timestamp.Add(1 * time.Second)), "other namespace log"},
+			},
+		},
+	}
+
+	err := PushLogs(ctx, lokiContainer.Endpoint, streams)
+	require.NoError(t, err, "Failed to push logs")
+
+	time.Sleep(2 * time.Second)
+
+	// Set up query filter for filtered-ns namespace
+	ResetFilterConfig()
+	err = InitializeFilterConfig(fmt.Sprintf(`{namespace="filtered-ns", test_id="%s"}`, testID))
+	require.NoError(t, err, "Failed to initialize filter config")
+	defer ResetFilterConfig()
+
+	request := NewCallToolRequest("loki_label_names", map[string]interface{}{
+		"url":    lokiContainer.Endpoint,
+		"format": "raw",
+		"start":  "-5m",
+		"end":    "now",
+	})
+
+	result, err := HandleLokiLabelNames(ctx, request)
+	require.NoError(t, err, "HandleLokiLabelNames failed")
+
+	text := extractTextContent(result)
+	// Should contain unique_label_one from filtered-ns but not unique_label_two from other-ns
+	assert.Contains(t, text, "unique_label_one", "Should contain label from filtered namespace")
+	assert.NotContains(t, text, "unique_label_two", "Should NOT contain label from other namespace")
+}
+
+func TestIntegration_QueryFilter_LabelValuesRespectFilter(t *testing.T) {
+	ctx := context.Background()
+	testID := UniqueTestID()
+
+	// Insert logs with different job values per namespace
+	timestamp := time.Now().Add(-30 * time.Second)
+	streams := []LokiStream{
+		{
+			Stream: map[string]string{
+				"job":       "filter-job-allowed",
+				"namespace": "filter-test-ns",
+				"test_id":   testID,
+			},
+			Values: [][]string{
+				{makeTimestampNs(timestamp), "allowed job log"},
+			},
+		},
+		{
+			Stream: map[string]string{
+				"job":       "filter-job-blocked",
+				"namespace": "other-test-ns",
+				"test_id":   testID,
+			},
+			Values: [][]string{
+				{makeTimestampNs(timestamp.Add(1 * time.Second)), "blocked job log"},
+			},
+		},
+	}
+
+	err := PushLogs(ctx, lokiContainer.Endpoint, streams)
+	require.NoError(t, err, "Failed to push logs")
+
+	time.Sleep(2 * time.Second)
+
+	// Set up query filter
+	ResetFilterConfig()
+	err = InitializeFilterConfig(fmt.Sprintf(`{namespace="filter-test-ns", test_id="%s"}`, testID))
+	require.NoError(t, err, "Failed to initialize filter config")
+	defer ResetFilterConfig()
+
+	request := NewCallToolRequest("loki_label_values", map[string]interface{}{
+		"label":  "job",
+		"url":    lokiContainer.Endpoint,
+		"format": "raw",
+		"start":  "-5m",
+		"end":    "now",
+	})
+
+	result, err := HandleLokiLabelValues(ctx, request)
+	require.NoError(t, err, "HandleLokiLabelValues failed")
+
+	text := extractTextContent(result)
+	// Should contain job value from filtered namespace but not from other namespace
+	assert.Contains(t, text, "filter-job-allowed", "Should contain job value from filtered namespace")
+	assert.NotContains(t, text, "filter-job-blocked", "Should NOT contain job value from other namespace")
+}
+
+func TestIntegration_QueryFilter_NoFilterReturnsAll(t *testing.T) {
+	ctx := context.Background()
+	testID := UniqueTestID()
+
+	// Insert logs with different namespaces
+	timestamp := time.Now().Add(-30 * time.Second)
+	streams := []LokiStream{
+		{
+			Stream: map[string]string{
+				"job":       "api",
+				"namespace": "ns-one",
+				"test_id":   testID,
+			},
+			Values: [][]string{
+				{makeTimestampNs(timestamp), "namespace one log"},
+			},
+		},
+		{
+			Stream: map[string]string{
+				"job":       "api",
+				"namespace": "ns-two",
+				"test_id":   testID,
+			},
+			Values: [][]string{
+				{makeTimestampNs(timestamp.Add(1 * time.Second)), "namespace two log"},
+			},
+		},
+	}
+
+	err := PushLogs(ctx, lokiContainer.Endpoint, streams)
+	require.NoError(t, err, "Failed to push logs")
+
+	time.Sleep(2 * time.Second)
+
+	// Ensure no filter is configured
+	ResetFilterConfig()
+
+	// Query for all logs with the test ID - should get both namespaces
+	request := NewCallToolRequest("loki_query", map[string]interface{}{
+		"query":  fmt.Sprintf(`{test_id="%s"}`, testID),
+		"url":    lokiContainer.Endpoint,
+		"format": "text",
+		"start":  "-5m",
+		"end":    "now",
+	})
+
+	result, err := HandleLokiQuery(ctx, request)
+	require.NoError(t, err, "HandleLokiQuery failed")
+
+	text := extractTextContent(result)
+	assert.Contains(t, text, "namespace one log", "Should contain namespace one log")
+	assert.Contains(t, text, "namespace two log", "Should contain namespace two log")
+}

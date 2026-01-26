@@ -152,6 +152,15 @@ func HandleLokiQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.Cal
 	}
 	params.applyDefaults()
 
+	// Apply query filter if configured
+	if cfg := GetFilterConfig(); cfg != nil {
+		mergedQuery, err := MergeQueryWithFilter(params.Query, cfg.Matchers)
+		if err != nil {
+			return nil, fmt.Errorf("failed to apply query filter: %w", err)
+		}
+		params.Query = mergedQuery
+	}
+
 	// Set defaults for optional time parameters
 	start := time.Now().Add(-DefaultLookback)
 	end := time.Now()
@@ -442,10 +451,18 @@ func HandleLokiLabelNames(ctx context.Context, request mcp.CallToolRequest) (*mc
 		end = endTime
 	}
 
-	// Create Loki client and execute labels query
-	lokiClient := newLokiClient(&params)
+	var result *loghttp.LabelResponse
+	var err error
 
-	result, err := lokiClient.ListLabelNames(true, start, end)
+	// Use HTTP client with query filter if configured
+	if cfg := GetFilterConfig(); cfg != nil {
+		httpClient := NewLokiHTTPClient(&params)
+		filterQuery := BuildFilterSelector(cfg.Matchers)
+		result, err = httpClient.ListLabelNamesWithQuery(filterQuery, start, end)
+	} else {
+		lokiClient := newLokiClient(&params)
+		result, err = lokiClient.ListLabelNames(true, start, end)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("labels query execution failed: %w", err)
 	}
@@ -488,10 +505,18 @@ func HandleLokiLabelValues(ctx context.Context, request mcp.CallToolRequest) (*m
 		end = endTime
 	}
 
-	// Create Loki client and execute label values query
-	lokiClient := newLokiClient(&params)
+	var result *loghttp.LabelResponse
+	var err error
 
-	result, err := lokiClient.ListLabelValues(params.Label, true, start, end)
+	// Use HTTP client with query filter if configured
+	if cfg := GetFilterConfig(); cfg != nil {
+		httpClient := NewLokiHTTPClient(&params)
+		filterQuery := BuildFilterSelector(cfg.Matchers)
+		result, err = httpClient.ListLabelValuesWithQuery(params.Label, filterQuery, start, end)
+	} else {
+		lokiClient := newLokiClient(&params)
+		result, err = lokiClient.ListLabelValues(params.Label, true, start, end)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("label values query execution failed: %w", err)
 	}

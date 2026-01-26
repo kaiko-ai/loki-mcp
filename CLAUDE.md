@@ -66,7 +66,25 @@ Each tool supports authentication (basic auth or bearer token) and multi-tenancy
 - `LOKI_ORG_ID` - Default org ID for multi-tenant setups
 - `LOKI_USERNAME` / `LOKI_PASSWORD` - Basic auth credentials
 - `LOKI_TOKEN` - Bearer token authentication
+- `LOKI_QUERY_FILTER` - LogQL stream selector to restrict all queries (e.g., `{namespace="prod"}`)
 - `PORT` - HTTP server port (default: 8080)
+
+### CLI Flags
+- `--query-filter` - LogQL stream selector to restrict all queries (overrides `LOKI_QUERY_FILTER`)
+
+### Query Filter
+The query filter restricts all Loki queries to logs matching the specified LogQL stream selector. This is useful for multi-tenant environments where clients should only access logs from specific namespaces or jobs.
+
+Example:
+```bash
+# Restrict all queries to logs with namespace="prod"
+./loki-mcp --query-filter='{namespace="prod"}'
+
+# Or via environment variable
+LOKI_QUERY_FILTER='{namespace="prod"}' ./loki-mcp
+```
+
+When a filter is active, it is ANDed with client queries. For example, if the filter is `{namespace="prod"}` and a client queries `{job="api"}`, the actual query becomes `{namespace="prod", job="api"}`.
 
 ### Output Formats
 The `format` parameter controls output: `raw` (default), `json`, or `text`.

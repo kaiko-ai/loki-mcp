@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -26,6 +27,23 @@ const (
 var version = "dev"
 
 func main() {
+	// Parse CLI flags
+	queryFilter := flag.String("query-filter", "", "LogQL stream selector to restrict all queries (e.g., {namespace=\"prod\"})")
+	flag.Parse()
+
+	// Fallback to environment variable if flag is not set
+	if *queryFilter == "" {
+		*queryFilter = os.Getenv("LOKI_QUERY_FILTER")
+	}
+
+	// Initialize and validate the query filter
+	if *queryFilter != "" {
+		if err := handlers.InitializeFilterConfig(*queryFilter); err != nil {
+			log.Fatalf("Invalid query filter: %v", err)
+		}
+		log.Printf("Query filter configured: %s", *queryFilter)
+	}
+
 	// Create a new MCP server
 	s := server.NewMCPServer(
 		"Loki MCP Server",
