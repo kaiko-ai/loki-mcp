@@ -40,7 +40,4 @@ changelog:
       - '^test:'
       - '^chore:'
 
-release:
-  github:
-    owner: grafana
-    name: loki-mcp
+# release config auto-detected from git remote
