@@ -1,6 +1,6 @@
 # Loki MCP Server
 
-[![CI](https://github.com/scottlepp/loki-mcp/workflows/CI/badge.svg)](https://github.com/scottlepp/loki-mcp/actions/workflows/ci.yml)
+[![CI](https://github.com/grafana/loki-mcp/workflows/CI/badge.svg)](https://github.com/grafana/loki-mcp/actions/workflows/ci.yml)
 
 A Go-based server implementation for the Model Context Protocol (MCP) with Grafana Loki integration.
 
@@ -8,7 +8,7 @@ A Go-based server implementation for the Model Context Protocol (MCP) with Grafa
 
 ### Prerequisites
 
-- Go 1.16 or higher
+- Go 1.21 or higher
 
 ### Building and Running
 
@@ -16,16 +16,16 @@ Build and run the server:
 
 ```bash
 # Build the server
-go build -o loki-mcp-server ./cmd/server
+go build -o loki-mcp ./cmd/loki-mcp
 
 # Run the server
-./loki-mcp-server
+./loki-mcp
 ```
 
 Or run directly with Go:
 
 ```bash
-go run ./cmd/server
+go run ./cmd/loki-mcp
 ```
 
 The server communicates using stdin/stdout and SSE following the Model Context Protocol (MCP). This makes it suitable for use with Claude Desktop and other MCP-compatible clients.
@@ -35,14 +35,11 @@ The server communicates using stdin/stdout and SSE following the Model Context P
 ```
 .
 ├── cmd/
-│   ├── server/       # MCP server implementation
-│   └── client/       # Client for testing the MCP server
+│   └── loki-mcp/         # MCP server implementation
 ├── internal/
-│   ├── handlers/     # Tool handlers
-│   └── models/       # Data models
-├── pkg/
-│   └── utils/        # Utility functions and shared code
-└── go.mod            # Go module definition
+│   └── handlers/         # Tool handlers
+├── docker/               # Docker-related files (promtail, grafana, scripts)
+└── go.mod                # Go module definition
 ```
 
 ## MCP Server
@@ -63,9 +60,17 @@ The `loki_query` tool allows you to query Grafana Loki log data:
   - `limit`: Maximum number of entries to return (default: 100)
   - `org`: Organization ID for the query (sent as X-Scope-OrgID header)
 
+### Loki Label Names Tool
+
+The `loki_label_names` tool returns all available label names from Loki.
+
+### Loki Label Values Tool
+
+The `loki_label_values` tool returns all values for a specific label.
+
 #### Environment Variables
 
-The Loki query tool supports the following environment variables:
+The Loki tools support the following environment variables:
 
 - `LOKI_URL`: Default Loki server URL to use if not specified in the request
 - `LOKI_ORG_ID`: Default organization ID to use if not specified in the request
@@ -75,59 +80,16 @@ The Loki query tool supports the following environment variables:
 
 **Security Note**: When using authentication environment variables, be careful not to expose sensitive credentials in logs or configuration files. Consider using token-based authentication over username/password when possible.
 
-### Testing the MCP Server
-
-You can test the MCP server using the provided client:
-
-```bash
-# Build the client
-go build -o loki-mcp-client ./cmd/client
-
-# Loki query examples:
-./loki-mcp-client loki_query "{job=\"varlogs\"}"
-./loki-mcp-client loki_query "{job=\"varlogs\"}" "-1h" "now" 100
-
-# Using environment variables:
-export LOKI_URL="http://localhost:3100"
-./loki-mcp-client loki_query "{job=\"varlogs\"}"
-
-# Using environment variables for both URL and org:
-export LOKI_URL="http://localhost:3100"
-export LOKI_ORG_ID="tenant-123"
-./loki-mcp-client loki_query "{job=\"varlogs\"}"
-
-# Using environment variables for authentication:
-export LOKI_URL="http://localhost:3100"
-export LOKI_USERNAME="admin"
-export LOKI_PASSWORD="password"
-./loki-mcp-client loki_query "{job=\"varlogs\"}"
-
-# Using environment variables with bearer token:
-export LOKI_URL="http://localhost:3100"
-export LOKI_TOKEN="your-bearer-token"
-./loki-mcp-client loki_query "{job=\"varlogs\"}"
-
-# Using all environment variables together:
-export LOKI_URL="http://localhost:3100"
-export LOKI_ORG_ID="tenant-123"
-export LOKI_USERNAME="admin"
-export LOKI_PASSWORD="password"
-./loki-mcp-client loki_query "{job=\"varlogs\"}"
-
-# Using org parameter for multi-tenant setups:
-./loki-mcp-client loki_query "{job=\"varlogs\"}" "" "" "" "" "" "tenant-123"
-```
-
 ## Docker Support
 
 You can build and run the MCP server using Docker:
 
 ```bash
 # Build the Docker image
-docker build -t loki-mcp-server .
+docker build -t loki-mcp .
 
 # Run the server
-docker run --rm -i loki-mcp-server
+docker run --rm -i loki-mcp
 ```
 
 Alternatively, you can use Docker Compose:
@@ -152,49 +114,39 @@ The project includes a complete Docker Compose setup to test Loki queries locall
    - A log generator container that sends sample logs to Loki
    - The Loki MCP server
 
-2. Use the provided test script to query logs:
-   ```bash
-   # Run with default parameters (queries last 15 minutes of logs)
-   ./test-loki-query.sh
-   
-   # Query for error logs
-   ./test-loki-query.sh '{job="varlogs"} |= "ERROR"'
-   
-   # Specify a custom time range and limit
-   ./test-loki-query.sh '{job="varlogs"}' '-1h' 'now' 50
-   ```
-
-3. Insert dummy logs for testing:
+2. Insert dummy logs for testing:
    ```bash
    # Insert 10 dummy logs with default settings
-   ./insert-loki-logs.sh
-   
+   ./docker/insert-loki-logs.sh
+
    # Insert 20 logs with custom job and app name
-   ./insert-loki-logs.sh --num 20 --job "custom-job" --app "my-app"
-   
+   ./docker/insert-loki-logs.sh --num 20 --job "custom-job" --app "my-app"
+
    # Insert logs with custom environment and interval
-   ./insert-loki-logs.sh --env "production" --interval 0.5
-   
+   ./docker/insert-loki-logs.sh --env "production" --interval 0.5
+
    # Show help message
-   ./insert-loki-logs.sh --help
+   ./docker/insert-loki-logs.sh --help
    ```
 
-4. Access the Grafana UI at http://localhost:3000 to explore logs visually.
+3. Access the Grafana UI at http://localhost:3000 to explore logs visually.
 
 ## Server-Sent Events (SSE) Support
 
-The server now supports two modes of communication:
+The server now supports multiple modes of communication:
 1. Standard input/output (stdin/stdout) following the Model Context Protocol (MCP)
 2. HTTP Server with Server-Sent Events (SSE) endpoint for integration with tools like n8n
+3. Streamable HTTP endpoint for modern MCP clients
 
-The default port for the HTTP server is 8080, but can be configured using the `SSE_PORT` environment variable.
+The default port for the HTTP server is 8080, but can be configured using the `PORT` environment variable.
 
 ### Server Endpoints
 
 When running in HTTP mode, the server exposes the following endpoints:
 
-- SSE Endpoint: `http://localhost:8080/sse` - For real-time event streaming
-- MCP Endpoint: `http://localhost:8080/mcp` - For MCP protocol messaging
+- SSE Endpoint: `http://localhost:8080/sse` - For real-time event streaming (legacy)
+- MCP Endpoint: `http://localhost:8080/mcp` - For MCP protocol messaging (legacy)
+- Streamable HTTP: `http://localhost:8080/stream` - For modern MCP clients
 
 ### Using Docker with SSE
 
@@ -202,10 +154,10 @@ When running the server with Docker, make sure to expose port 8080:
 
 ```bash
 # Build the Docker image
-docker build -t loki-mcp-server .
+docker build -t loki-mcp .
 
 # Run the server with port mapping
-docker run -p 8080:8080 --rm -i loki-mcp-server
+docker run -p 8080:8080 --rm -i loki-mcp
 ```
 
 ### n8n Integration
@@ -228,8 +180,7 @@ Trigger → MCP Client Tool (Loki server) → AI Agent (Claude)
 
 The Loki MCP Server uses a modular architecture:
 
-- **Server**: The main MCP server implementation in `cmd/server/main.go`
-- **Client**: A test client in `cmd/client/main.go` for interacting with the MCP server
+- **Server**: The main MCP server implementation in `cmd/loki-mcp/main.go`
 - **Handlers**: Individual tool handlers in `internal/handlers/`
   - `loki.go`: Grafana Loki query functionality
 
@@ -241,25 +192,16 @@ You can use this MCP server with Claude Desktop to add Loki query tools. Follow 
 
 1. Build the server:
 ```bash
-go build -o loki-mcp-server ./cmd/server
+go build -o loki-mcp ./cmd/loki-mcp
 ```
 
 2. Add the configuration to your Claude Desktop configuration file using `claude_desktop_config_binary.json`.
 
-### Option 2: Using Go Run with a Shell Script
-
-1. Make the script executable:
-```bash
-chmod +x run-mcp-server.sh
-```
-
-2. Add the configuration to your Claude Desktop configuration file using `claude_desktop_config_script.json`.
-
-### Option 3: Using Docker (Recommended)
+### Option 2: Using Docker (Recommended)
 
 1. Build the Docker image:
 ```bash
-docker build -t loki-mcp-server .
+docker build -t loki-mcp .
 ```
 
 2. Add the configuration to your Claude Desktop configuration file using `claude_desktop_config_docker.json`.
@@ -272,19 +214,17 @@ The Claude Desktop configuration file is located at:
 - On Linux: `~/.config/Claude/claude_desktop_config.json`
 
 You can use one of the example configurations provided in this repository:
-- `claude_desktop_config.json`: Generic template
-- `claude_desktop_config_example.json`: Example using `go run` with the current path
+- `claude_desktop_config.json`: Generic template using `go run`
 - `claude_desktop_config_binary.json`: Example using the compiled binary
-- `claude_desktop_config_script.json`: Example using a shell script (recommended for `go run`)
 - `claude_desktop_config_docker.json`: Example using Docker (most reliable)
 
 **Notes**:
-- When using `go run` with Claude Desktop, you may need to set several environment variables in both the script and the configuration file:
+- When using `go run` with Claude Desktop, you may need to set several environment variables in the configuration file:
   - `HOME`: The user's home directory
   - `GOPATH`: The Go workspace directory
   - `GOMODCACHE`: The Go module cache directory
   - `GOCACHE`: The Go build cache directory
-  
+
   These are required to ensure Go can find its modules and build cache when run from Claude Desktop.
 
 - Using Docker is the most reliable approach as it packages all dependencies and environment variables in a container.
@@ -295,7 +235,7 @@ Or create your own configuration:
 {
   "mcpServers": {
     "lokiserver": {
-      "command": "path/to/loki-mcp-server",
+      "command": "path/to/loki-mcp",
       "args": [],
       "env": {
         "LOKI_URL": "http://localhost:3100",
@@ -311,7 +251,7 @@ Or create your own configuration:
 }
 ```
 
-Make sure to replace `path/to/loki-mcp-server` with the absolute path to the built binary or source code.
+Make sure to replace `path/to/loki-mcp` with the absolute path to the built binary.
 
 4. Restart Claude Desktop.
 
@@ -349,7 +289,7 @@ When you mention any of these natural language prompts, the AI assistant will au
 
 The key is to naturally mention any specific parameters in your request - the AI will understand how to map them to the appropriate Loki query tool parameters. When parameters are not explicitly mentioned, the system will automatically use defaults from environment variables:
 - `LOKI_URL` for the Loki server URL
-- `LOKI_ORG_ID` for the organization ID  
+- `LOKI_ORG_ID` for the organization ID
 - `LOKI_USERNAME` and `LOKI_PASSWORD` for basic authentication
 - `LOKI_TOKEN` for bearer token authentication
 
@@ -364,15 +304,15 @@ Docker configuration:
 ```json
 {
   "mcpServers": {
-    "loki-mcp-server": {
+    "loki-mcp": {
       "command": "docker",
-      "args": ["run", "--rm", "-i", 
-               "-e", "LOKI_URL=http://host.docker.internal:3100", 
+      "args": ["run", "--rm", "-i",
+               "-e", "LOKI_URL=http://host.docker.internal:3100",
                "-e", "LOKI_ORG_ID=your-default-org-id",
                "-e", "LOKI_USERNAME=your-username",
                "-e", "LOKI_PASSWORD=your-password",
                "-e", "LOKI_TOKEN=your-bearer-token",
-               "loki-mcp-server:latest"]
+               "loki-mcp:latest"]
     }
   }
 }
@@ -396,6 +336,6 @@ go test ./...
 go test -coverprofile=coverage.out ./...
 go tool cover -func=coverage.out
 
-# Run tests with race detection  
+# Run tests with race detection
 go test -race ./...
 ```

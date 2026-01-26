@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "loki-mcp-server": {
+    "loki-mcp": {
       "command": "go",
-      "args": ["run", "/path/to/loki-mcp-server/cmd/server/main.go"],
+      "args": ["run", "/path/to/loki-mcp/cmd/loki-mcp"],
       "env": {
         "LOKI_URL": "http://localhost:3100"
       },
