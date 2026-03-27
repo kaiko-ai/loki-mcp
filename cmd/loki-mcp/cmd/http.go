@@ -1,18 +1,11 @@
 package cmd
 
 import (
-	"os"
-
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/grafana/loki-mcp/internal/logging"
 	"github.com/grafana/loki-mcp/internal/server"
-)
-
-var (
-	httpPort       string
-	httpHost       string
-	httpDisableSSE bool
 )
 
 // httpCmd represents the http command
@@ -27,9 +20,9 @@ Endpoints:
   /mcp    - SSE message endpoint (legacy, can be disabled)`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg := server.HTTPConfig{
-			Host:       httpHost,
-			Port:       httpPort,
-			DisableSSE: httpDisableSSE,
+			Host:       viper.GetString("host"),
+			Port:       viper.GetString("port"),
+			DisableSSE: viper.GetBool("disable-sse"),
 		}
 
 		if err := server.RunHTTP(Version, cfg); err != nil {
@@ -43,16 +36,14 @@ Endpoints:
 func init() {
 	rootCmd.AddCommand(httpCmd)
 
-	// Get default port from environment or use 8080
-	defaultPort := os.Getenv("PORT")
-	if defaultPort == "" {
-		defaultPort = "8080"
-	}
+	httpCmd.Flags().StringP("port", "p", "8080", "HTTP server port")
+	httpCmd.Flags().String("host", "0.0.0.0", "HTTP server bind address")
+	httpCmd.Flags().Bool("disable-sse", false, "Disable legacy SSE endpoints (/sse, /mcp)")
 
-	httpCmd.Flags().StringVarP(&httpPort, "port", "p", defaultPort,
-		"HTTP server port. Can also be set via PORT env var.")
-	httpCmd.Flags().StringVar(&httpHost, "host", "0.0.0.0",
-		"HTTP server bind address")
-	httpCmd.Flags().BoolVar(&httpDisableSSE, "disable-sse", false,
-		"Disable legacy SSE endpoints (/sse, /mcp)")
+	_ = viper.BindPFlag("port", httpCmd.Flags().Lookup("port"))
+	_ = viper.BindPFlag("host", httpCmd.Flags().Lookup("host"))
+	_ = viper.BindPFlag("disable-sse", httpCmd.Flags().Lookup("disable-sse"))
+
+	// PORT (without LOKI_ prefix) is the conventional env var for HTTP port
+	_ = viper.BindEnv("port", "PORT")
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/grafana/loki/v3/pkg/loghttp"
 	"github.com/grafana/loki/v3/pkg/logproto"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/spf13/viper"
 )
 
 // SSEEvent represents an event to be sent via SSE
@@ -23,18 +23,8 @@ type SSEEvent struct {
 	Results   any    `json:"results"`
 }
 
-// Environment variable names
-const (
-	EnvLokiURL      = "LOKI_URL"
-	EnvLokiOrgID    = "LOKI_ORG_ID"
-	EnvLokiUsername = "LOKI_USERNAME"
-	EnvLokiPassword = "LOKI_PASSWORD"
-	EnvLokiToken    = "LOKI_TOKEN"
-)
-
 // Default values
 const (
-	DefaultLokiURL     = "http://localhost:3100"
 	DefaultHTTPTimeout = 30 * time.Second
 	DefaultQueryLimit  = 100
 	DefaultLookback    = 1 * time.Hour
@@ -59,25 +49,22 @@ type LokiParams struct {
 	FilterCaseSensitive bool    `json:"filter_case_sensitive"` // Case sensitivity for filter (default: false)
 }
 
-// applyDefaults fills in missing values from environment variables
+// applyDefaults fills in missing values from viper-bound config
 func (p *LokiParams) applyDefaults() {
 	if p.URL == "" {
-		p.URL = os.Getenv(EnvLokiURL)
-		if p.URL == "" {
-			p.URL = DefaultLokiURL
-		}
+		p.URL = viper.GetString("url")
 	}
 	if p.Username == "" {
-		p.Username = os.Getenv(EnvLokiUsername)
+		p.Username = viper.GetString("username")
 	}
 	if p.Password == "" {
-		p.Password = os.Getenv(EnvLokiPassword)
+		p.Password = viper.GetString("password")
 	}
 	if p.Token == "" {
-		p.Token = os.Getenv(EnvLokiToken)
+		p.Token = viper.GetString("token")
 	}
 	if p.Org == "" {
-		p.Org = os.Getenv(EnvLokiOrgID)
+		p.Org = viper.GetString("org-id")
 	}
 	if p.Format == "" {
 		p.Format = "raw"
@@ -97,19 +84,7 @@ func newLokiClient(params *LokiParams) *client.DefaultClient {
 
 // NewLokiQueryTool creates and returns a tool for querying Grafana Loki
 func NewLokiQueryTool() mcp.Tool {
-	// Get Loki URL from environment variable or use default
-	lokiURL := os.Getenv(EnvLokiURL)
-	if lokiURL == "" {
-		lokiURL = DefaultLokiURL
-	}
-
-	// Get Loki Org ID from environment variable if set
-	orgID := os.Getenv(EnvLokiOrgID)
-
-	// Get authentication parameters from environment variables if set
-	username := os.Getenv(EnvLokiUsername)
-	password := os.Getenv(EnvLokiPassword)
-	token := os.Getenv(EnvLokiToken)
+	lokiURL := viper.GetString("url")
 
 	return mcp.NewTool("loki_query",
 		mcp.WithDescription("Run a query against Grafana Loki"),
@@ -118,17 +93,17 @@ func NewLokiQueryTool() mcp.Tool {
 			mcp.Description("LogQL query string"),
 		),
 		mcp.WithString("url",
-			mcp.Description(fmt.Sprintf("Loki server URL (default: %s from %s env var)", lokiURL, EnvLokiURL)),
+			mcp.Description("Loki server URL (env: LOKI_URL)"),
 			mcp.DefaultString(lokiURL),
 		),
 		mcp.WithString("username",
-			mcp.Description(fmt.Sprintf("Username for basic authentication (default: %s from %s env var)", username, EnvLokiUsername)),
+			mcp.Description("Username for basic authentication (env: LOKI_USERNAME)"),
 		),
 		mcp.WithString("password",
-			mcp.Description(fmt.Sprintf("Password for basic authentication (default: %s from %s env var)", password, EnvLokiPassword)),
+			mcp.Description("Password for basic authentication (env: LOKI_PASSWORD)"),
 		),
 		mcp.WithString("token",
-			mcp.Description(fmt.Sprintf("Bearer token for authentication (default: %s from %s env var)", token, EnvLokiToken)),
+			mcp.Description("Bearer token for authentication (env: LOKI_TOKEN)"),
 		),
 		mcp.WithString("start",
 			mcp.Description("Start time for the query (default: 1h ago)"),
@@ -140,7 +115,7 @@ func NewLokiQueryTool() mcp.Tool {
 			mcp.Description("Maximum number of entries to return (default: 100)"),
 		),
 		mcp.WithString("org",
-			mcp.Description(fmt.Sprintf("Organization ID for the query (default: %s from %s env var)", orgID, EnvLokiOrgID)),
+			mcp.Description("Organization ID for the query (env: LOKI_ORG_ID)"),
 		),
 		mcp.WithString("format",
 			mcp.Description("Output format: raw, json, or text (default: raw)"),
@@ -484,32 +459,22 @@ func formatLokiResults(result *loghttp.QueryResponse, format string) (string, er
 
 // NewLokiLabelNamesTool creates and returns a tool for getting all label names from Grafana Loki
 func NewLokiLabelNamesTool() mcp.Tool {
-	// Get Loki URL from environment variable or use default
-	lokiURL := os.Getenv(EnvLokiURL)
-	if lokiURL == "" {
-		lokiURL = DefaultLokiURL
-	}
-
-	// Get authentication parameters from environment variables if set
-	username := os.Getenv(EnvLokiUsername)
-	password := os.Getenv(EnvLokiPassword)
-	token := os.Getenv(EnvLokiToken)
-	orgID := os.Getenv(EnvLokiOrgID)
+	lokiURL := viper.GetString("url")
 
 	return mcp.NewTool("loki_label_names",
 		mcp.WithDescription("Get all label names from Grafana Loki"),
 		mcp.WithString("url",
-			mcp.Description(fmt.Sprintf("Loki server URL (default: %s from %s env var)", lokiURL, EnvLokiURL)),
+			mcp.Description("Loki server URL (env: LOKI_URL)"),
 			mcp.DefaultString(lokiURL),
 		),
 		mcp.WithString("username",
-			mcp.Description(fmt.Sprintf("Username for basic authentication (default: %s from %s env var)", username, EnvLokiUsername)),
+			mcp.Description("Username for basic authentication (env: LOKI_USERNAME)"),
 		),
 		mcp.WithString("password",
-			mcp.Description(fmt.Sprintf("Password for basic authentication (default: %s from %s env var)", password, EnvLokiPassword)),
+			mcp.Description("Password for basic authentication (env: LOKI_PASSWORD)"),
 		),
 		mcp.WithString("token",
-			mcp.Description(fmt.Sprintf("Bearer token for authentication (default: %s from %s env var)", token, EnvLokiToken)),
+			mcp.Description("Bearer token for authentication (env: LOKI_TOKEN)"),
 		),
 		mcp.WithString("start",
 			mcp.Description("Start time for the query (default: 1h ago)"),
@@ -518,7 +483,7 @@ func NewLokiLabelNamesTool() mcp.Tool {
 			mcp.Description("End time for the query (default: now)"),
 		),
 		mcp.WithString("org",
-			mcp.Description(fmt.Sprintf("Organization ID for the query (default: %s from %s env var)", orgID, EnvLokiOrgID)),
+			mcp.Description("Organization ID for the query (env: LOKI_ORG_ID)"),
 		),
 		mcp.WithString("format",
 			mcp.Description("Output format: raw, json, or text (default: raw)"),
@@ -529,17 +494,7 @@ func NewLokiLabelNamesTool() mcp.Tool {
 
 // NewLokiLabelValuesTool creates and returns a tool for getting values for a specific label from Grafana Loki
 func NewLokiLabelValuesTool() mcp.Tool {
-	// Get Loki URL from environment variable or use default
-	lokiURL := os.Getenv(EnvLokiURL)
-	if lokiURL == "" {
-		lokiURL = DefaultLokiURL
-	}
-
-	// Get authentication parameters from environment variables if set
-	username := os.Getenv(EnvLokiUsername)
-	password := os.Getenv(EnvLokiPassword)
-	token := os.Getenv(EnvLokiToken)
-	orgID := os.Getenv(EnvLokiOrgID)
+	lokiURL := viper.GetString("url")
 
 	return mcp.NewTool("loki_label_values",
 		mcp.WithDescription("Get all values for a specific label from Grafana Loki"),
@@ -548,17 +503,17 @@ func NewLokiLabelValuesTool() mcp.Tool {
 			mcp.Description("Label name to get values for"),
 		),
 		mcp.WithString("url",
-			mcp.Description(fmt.Sprintf("Loki server URL (default: %s from %s env var)", lokiURL, EnvLokiURL)),
+			mcp.Description("Loki server URL (env: LOKI_URL)"),
 			mcp.DefaultString(lokiURL),
 		),
 		mcp.WithString("username",
-			mcp.Description(fmt.Sprintf("Username for basic authentication (default: %s from %s env var)", username, EnvLokiUsername)),
+			mcp.Description("Username for basic authentication (env: LOKI_USERNAME)"),
 		),
 		mcp.WithString("password",
-			mcp.Description(fmt.Sprintf("Password for basic authentication (default: %s from %s env var)", password, EnvLokiPassword)),
+			mcp.Description("Password for basic authentication (env: LOKI_PASSWORD)"),
 		),
 		mcp.WithString("token",
-			mcp.Description(fmt.Sprintf("Bearer token for authentication (default: %s from %s env var)", token, EnvLokiToken)),
+			mcp.Description("Bearer token for authentication (env: LOKI_TOKEN)"),
 		),
 		mcp.WithString("start",
 			mcp.Description("Start time for the query (default: 1h ago)"),
@@ -567,7 +522,7 @@ func NewLokiLabelValuesTool() mcp.Tool {
 			mcp.Description("End time for the query (default: now)"),
 		),
 		mcp.WithString("org",
-			mcp.Description(fmt.Sprintf("Organization ID for the query (default: %s from %s env var)", orgID, EnvLokiOrgID)),
+			mcp.Description("Organization ID for the query (env: LOKI_ORG_ID)"),
 		),
 		mcp.WithString("format",
 			mcp.Description("Output format: raw, json, or text (default: raw)"),
