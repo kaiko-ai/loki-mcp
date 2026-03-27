@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -35,6 +36,19 @@ Use subcommands to run the server in different modes:
 			}
 			logging.Infof("Query filter configured: %s", queryFilter)
 		}
+
+		// Ping Loki to verify connectivity before starting the server
+		params := &handlers.LokiParams{
+			URL:      viper.GetString("url"),
+			Username: viper.GetString("username"),
+			Password: viper.GetString("password"),
+			Token:    viper.GetString("token"),
+			Org:      viper.GetString("org-id"),
+		}
+		if err := handlers.PingLoki(params); err != nil {
+			return fmt.Errorf("loki connectivity check failed: %w", err)
+		}
+		logging.Infof("Loki reachable at %s", params.URL)
 
 		return nil
 	},

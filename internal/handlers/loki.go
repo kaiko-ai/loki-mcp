@@ -15,6 +15,18 @@ import (
 	"github.com/spf13/viper"
 )
 
+// PingLoki verifies connectivity and authentication to Loki by making a
+// lightweight ListLabelNames call via the SDK client.
+func PingLoki(params *LokiParams) error {
+	lokiClient := newLokiClient(params)
+	now := time.Now()
+	_, err := lokiClient.ListLabelNames(true, now.Add(-time.Minute), now)
+	if err != nil {
+		return fmt.Errorf("failed to reach Loki at %s: %w", params.URL, err)
+	}
+	return nil
+}
+
 // SSEEvent represents an event to be sent via SSE
 type SSEEvent struct {
 	Type      string `json:"type"`
