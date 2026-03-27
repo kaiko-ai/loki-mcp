@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -41,17 +42,21 @@ const (
 
 // LokiParams contains common parameters for Loki tool requests
 type LokiParams struct {
-	URL      string  `json:"url"`
-	Username string  `json:"username"`
-	Password string  `json:"password"`
-	Token    string  `json:"token"`
-	Org      string  `json:"org"`
-	Start    string  `json:"start"`
-	End      string  `json:"end"`
-	Format   string  `json:"format"`
-	Limit    float64 `json:"limit"` // JSON numbers deserialize as float64
-	Query    string  `json:"query"` // for loki_query
-	Label    string  `json:"label"` // for loki_label_values
+	URL                 string  `json:"url"`
+	Username            string  `json:"username"`
+	Password            string  `json:"password"`
+	Token               string  `json:"token"`
+	Org                 string  `json:"org"`
+	Start               string  `json:"start"`
+	End                 string  `json:"end"`
+	Format              string  `json:"format"`
+	Limit               float64 `json:"limit"`                 // JSON numbers deserialize as float64
+	Query               string  `json:"query"`                 // for loki_query
+	Label               string  `json:"label"`                 // for loki_label_values
+	Head                float64 `json:"head"`                  // Return only the first N entries (oldest)
+	Tail                float64 `json:"tail"`                  // Return only the last N entries (newest)
+	Filter              string  `json:"filter"`                // Filter log lines by substring
+	FilterCaseSensitive bool    `json:"filter_case_sensitive"` // Case sensitivity for filter (default: false)
 }
 
 // applyDefaults fills in missing values from environment variables
@@ -141,6 +146,18 @@ func NewLokiQueryTool() mcp.Tool {
 			mcp.Description("Output format: raw, json, or text (default: raw)"),
 			mcp.DefaultString("raw"),
 		),
+		mcp.WithNumber("head",
+			mcp.Description("Return only the first N log entries (oldest). Cannot be used with tail."),
+		),
+		mcp.WithNumber("tail",
+			mcp.Description("Return only the last N log entries (newest). Cannot be used with head."),
+		),
+		mcp.WithString("filter",
+			mcp.Description("Filter log lines to only those containing this substring"),
+		),
+		mcp.WithBoolean("filter_case_sensitive",
+			mcp.Description("When true, filter matching is case-sensitive (default: false)"),
+		),
 	)
 }
 
@@ -151,6 +168,11 @@ func HandleLokiQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.Cal
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
 	params.applyDefaults()
+
+	// Validate head/tail mutual exclusivity
+	if params.Head > 0 && params.Tail > 0 {
+		return nil, fmt.Errorf("head and tail parameters are mutually exclusive")
+	}
 
 	// Apply query filter if configured
 	if cfg := GetFilterConfig(); cfg != nil {
@@ -204,6 +226,28 @@ func HandleLokiQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.Cal
 		return nil, fmt.Errorf("query execution failed: %w", err)
 	}
 
+	// Apply post-processing filters if any are specified
+	if params.Filter != "" || params.Head > 0 || params.Tail > 0 {
+		streams, ok := result.Data.Result.(loghttp.Streams)
+		if ok && len(streams) > 0 {
+			// Collect and sort all entries by timestamp
+			entries := collectAndSortEntries(streams)
+
+			// Apply keyword filter
+			if params.Filter != "" {
+				entries = filterEntries(entries, params.Filter, params.FilterCaseSensitive)
+			}
+
+			// Apply head/tail
+			if params.Head > 0 || params.Tail > 0 {
+				entries = applyHeadTail(entries, int(params.Head), int(params.Tail))
+			}
+
+			// Convert back to streams format
+			result.Data.Result = entriesToStreams(entries)
+		}
+	}
+
 	// Format results
 	formattedResult, err := formatLokiResults(result, params.Format)
 	if err != nil {
@@ -249,6 +293,116 @@ func parseTime(timeStr string) (time.Time, error) {
 	}
 
 	return time.Time{}, fmt.Errorf("unsupported time format: %s", timeStr)
+}
+
+// logEntry represents a single log entry with its associated labels for sorting and filtering
+type logEntry struct {
+	Timestamp time.Time
+	Line      string
+	Labels    loghttp.LabelSet
+}
+
+// collectAndSortEntries merges entries from all streams and sorts them by timestamp (oldest first)
+func collectAndSortEntries(streams loghttp.Streams) []logEntry {
+	var entries []logEntry
+	for _, stream := range streams {
+		for _, entry := range stream.Entries {
+			entries = append(entries, logEntry{
+				Timestamp: entry.Timestamp,
+				Line:      entry.Line,
+				Labels:    stream.Labels,
+			})
+		}
+	}
+
+	// Sort by timestamp ascending (oldest first)
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Timestamp.Before(entries[j].Timestamp)
+	})
+
+	return entries
+}
+
+// filterEntries filters log entries by substring match
+func filterEntries(entries []logEntry, filter string, caseSensitive bool) []logEntry {
+	var filtered []logEntry
+	searchFilter := filter
+	if !caseSensitive {
+		searchFilter = strings.ToLower(filter)
+	}
+
+	for _, entry := range entries {
+		line := entry.Line
+		if !caseSensitive {
+			line = strings.ToLower(line)
+		}
+		if strings.Contains(line, searchFilter) {
+			filtered = append(filtered, entry)
+		}
+	}
+
+	return filtered
+}
+
+// applyHeadTail returns the first N entries (head) or last N entries (tail)
+func applyHeadTail(entries []logEntry, head, tail int) []logEntry {
+	if len(entries) == 0 {
+		return entries
+	}
+
+	if head > 0 {
+		if head >= len(entries) {
+			return entries
+		}
+		return entries[:head]
+	}
+
+	if tail > 0 {
+		if tail >= len(entries) {
+			return entries
+		}
+		return entries[len(entries)-tail:]
+	}
+
+	return entries
+}
+
+// entriesToStreams converts a slice of logEntry back to loghttp.Streams format
+// Entries are grouped by their labels
+func entriesToStreams(entries []logEntry) loghttp.Streams {
+	if len(entries) == 0 {
+		return loghttp.Streams{}
+	}
+
+	// Group entries by labels
+	streamMap := make(map[string]*loghttp.Stream)
+	for _, entry := range entries {
+		key := entry.Labels.String()
+		if stream, exists := streamMap[key]; exists {
+			stream.Entries = append(stream.Entries, loghttp.Entry{
+				Timestamp: entry.Timestamp,
+				Line:      entry.Line,
+			})
+		} else {
+			streamMap[key] = &loghttp.Stream{
+				Labels: entry.Labels,
+				Entries: []loghttp.Entry{
+					{
+						Timestamp: entry.Timestamp,
+						Line:      entry.Line,
+					},
+				},
+			}
+		}
+	}
+
+	// Convert map to slice
+	var streams loghttp.Streams
+	for _, stream := range streamMap {
+		streams = append(streams, *stream)
+	}
+
+	return streams
 }
 
 // formatLokiResults formats the Loki query results into a readable string
