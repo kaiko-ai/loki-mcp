@@ -1,6 +1,6 @@
 # Loki MCP Server
 
-[![CI](https://github.com/grafana/loki-mcp/workflows/CI/badge.svg)](https://github.com/grafana/loki-mcp/actions/workflows/ci.yml)
+[![CI](https://github.com/kaiko-ai/loki-mcp/workflows/CI/badge.svg)](https://github.com/kaiko-ai/loki-mcp/actions/workflows/ci.yml)
 
 A Go-based server implementation for the Model Context Protocol (MCP) with Grafana Loki integration.
 
