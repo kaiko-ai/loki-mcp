@@ -91,7 +91,7 @@ The `format` parameter controls output: `raw` (default), `json`, or `text`.
 
 ## Module Path
 
-The module is `github.com/grafana/loki-mcp`. Binary installs as `loki-mcp`:
+The module is `github.com/kaiko-ai/loki-mcp`. Binary installs as `loki-mcp`:
 ```bash
-go install github.com/grafana/loki-mcp/cmd/loki-mcp@latest
+go install github.com/kaiko-ai/loki-mcp/cmd/loki-mcp@latest
 ```

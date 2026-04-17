@@ -3,7 +3,7 @@ package server
 import (
 	"github.com/mark3labs/mcp-go/server"
 
-	"github.com/grafana/loki-mcp/internal/handlers"
+	"github.com/kaiko-ai/loki-mcp/internal/handlers"
 )
 
 // New creates a new MCP server with all Loki tools registered

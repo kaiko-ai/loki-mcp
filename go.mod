@@ -1,4 +1,4 @@
-module github.com/grafana/loki-mcp
+module github.com/kaiko-ai/loki-mcp
 
 go 1.25
 

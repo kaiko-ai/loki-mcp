@@ -8,8 +8,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/grafana/loki-mcp/internal/handlers"
-	"github.com/grafana/loki-mcp/internal/logging"
+	"github.com/kaiko-ai/loki-mcp/internal/handlers"
+	"github.com/kaiko-ai/loki-mcp/internal/logging"
 )
 
 // Version is set via ldflags at build time

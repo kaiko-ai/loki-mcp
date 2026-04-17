@@ -3,8 +3,8 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/grafana/loki-mcp/internal/logging"
-	"github.com/grafana/loki-mcp/internal/server"
+	"github.com/kaiko-ai/loki-mcp/internal/logging"
+	"github.com/kaiko-ai/loki-mcp/internal/server"
 )
 
 // stdioCmd represents the stdio command

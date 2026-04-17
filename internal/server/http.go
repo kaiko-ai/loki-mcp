@@ -11,7 +11,7 @@ import (
 
 	"github.com/mark3labs/mcp-go/server"
 
-	"github.com/grafana/loki-mcp/internal/logging"
+	"github.com/kaiko-ai/loki-mcp/internal/logging"
 )
 
 // HTTPConfig holds configuration for the HTTP server

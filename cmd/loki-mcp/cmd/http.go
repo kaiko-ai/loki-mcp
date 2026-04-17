@@ -4,8 +4,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/grafana/loki-mcp/internal/logging"
-	"github.com/grafana/loki-mcp/internal/server"
+	"github.com/kaiko-ai/loki-mcp/internal/logging"
+	"github.com/kaiko-ai/loki-mcp/internal/server"
 )
 
 // httpCmd represents the http command

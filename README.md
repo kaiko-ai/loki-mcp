@@ -9,17 +9,17 @@ A Go-based server implementation for the Model Context Protocol (MCP) with Grafa
 ### Option 1: Go Install
 
 ```bash
-go install github.com/grafana/loki-mcp/cmd/loki-mcp@latest
+go install github.com/kaiko-ai/loki-mcp/cmd/loki-mcp@latest
 ```
 
 ### Option 2: Download Release Binary
 
-Download the pre-built binary for your platform from the [Releases page](https://github.com/grafana/loki-mcp/releases).
+Download the pre-built binary for your platform from the [Releases page](https://github.com/kaiko-ai/loki-mcp/releases).
 
 ### Option 3: Build from Source
 
 ```bash
-git clone https://github.com/grafana/loki-mcp.git
+git clone https://github.com/kaiko-ai/loki-mcp.git
 cd loki-mcp
 go build -o loki-mcp ./cmd/loki-mcp
 ```
