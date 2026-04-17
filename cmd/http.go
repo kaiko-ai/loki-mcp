@@ -36,14 +36,13 @@ Endpoints:
 func init() {
 	rootCmd.AddCommand(httpCmd)
 
-	httpCmd.Flags().StringP("port", "p", "8080", "HTTP server port")
-	httpCmd.Flags().String("host", "0.0.0.0", "HTTP server bind address")
-	httpCmd.Flags().Bool("disable-sse", false, "Disable legacy SSE endpoints (/sse, /mcp)")
+	envFlag(httpCmd.Flags(), "host", "", "0.0.0.0", "HTTP server bind address")
 
-	_ = viper.BindPFlag("port", httpCmd.Flags().Lookup("port"))
-	_ = viper.BindPFlag("host", httpCmd.Flags().Lookup("host"))
+	httpCmd.Flags().Bool("disable-sse", false, "Disable legacy SSE endpoints (/sse, /mcp) [env: LOKI_DISABLE_SSE]")
 	_ = viper.BindPFlag("disable-sse", httpCmd.Flags().Lookup("disable-sse"))
 
-	// PORT (without LOKI_ prefix) is the conventional env var for HTTP port
+	// PORT (without LOKI_ prefix) is the conventional env var for HTTP port.
+	httpCmd.Flags().StringP("port", "p", "8080", "HTTP server port [env: PORT]")
+	_ = viper.BindPFlag("port", httpCmd.Flags().Lookup("port"))
 	_ = viper.BindEnv("port", "PORT")
 }

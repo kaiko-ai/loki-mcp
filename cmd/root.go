@@ -6,14 +6,37 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
 	"github.com/kaiko-ai/loki-mcp/internal/handlers"
 	"github.com/kaiko-ai/loki-mcp/internal/logging"
 )
 
+// envFlag registers a string flag on fs, binds it to viper, and appends the
+// resolved env var to the usage string so --help surfaces it. The env var is
+// derived as <LOKI_PREFIX>_<NAME> with dashes replaced by underscores, matching
+// viper's AutomaticEnv + key replacer configuration.
+func envFlag(fs *pflag.FlagSet, name, shorthand, def, usage string) {
+	env := strings.ReplaceAll(strings.ToUpper(name), "-", "_")
+	if prefix := viper.GetEnvPrefix(); prefix != "" {
+		env = prefix + "_" + env
+	}
+	fs.StringP(name, shorthand, def, fmt.Sprintf("%s [env: %s]", usage, env))
+	_ = viper.BindPFlag(name, fs.Lookup(name))
+}
+
 // Version is set via ldflags at build time
 var Version = "dev"
+
+// Configure viper at package-init time (before any file's init() registers
+// flags), so envFlag can resolve the env prefix regardless of init() order.
+var _ = func() bool {
+	viper.SetEnvPrefix("LOKI")
+	viper.AutomaticEnv()
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	return true
+}()
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -62,29 +85,17 @@ func Execute() {
 }
 
 func init() {
-	viper.SetEnvPrefix("LOKI")
-	viper.AutomaticEnv()
-	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-
 	// Persistent flags
-	rootCmd.PersistentFlags().StringP("query-filter", "f", "",
+	pf := rootCmd.PersistentFlags()
+	envFlag(pf, "query-filter", "f", "",
 		"LogQL stream selector to restrict all queries (e.g., {namespace=\"prod\"})")
-	rootCmd.PersistentFlags().StringP("log-level", "l", "info",
-		"Log level: debug, info, warn, error")
-	rootCmd.PersistentFlags().String("log-format", "text",
-		"Log format: text, json")
+	envFlag(pf, "log-level", "l", "info", "Log level: debug, info, warn, error")
+	envFlag(pf, "log-format", "", "text", "Log format: text, json")
 
-	// Bind flags to viper
-	_ = viper.BindPFlag("query-filter", rootCmd.PersistentFlags().Lookup("query-filter"))
-	_ = viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level"))
-	_ = viper.BindPFlag("log-format", rootCmd.PersistentFlags().Lookup("log-format"))
-
-	// Bind Loki connection env vars
-	_ = viper.BindEnv("url", "LOKI_URL")
-	_ = viper.BindEnv("org-id", "LOKI_ORG_ID")
-	_ = viper.BindEnv("username", "LOKI_USERNAME")
-	_ = viper.BindEnv("password", "LOKI_PASSWORD")
-	_ = viper.BindEnv("token", "LOKI_TOKEN")
-
-	viper.SetDefault("url", "http://localhost:3100")
+	// Loki connection flags
+	envFlag(pf, "url", "u", "http://localhost:3100", "Loki server URL")
+	envFlag(pf, "org-id", "", "", "Loki org ID for multi-tenant setups (X-Scope-OrgID)")
+	envFlag(pf, "username", "", "", "Basic auth username")
+	envFlag(pf, "password", "", "", "Basic auth password")
+	envFlag(pf, "token", "", "", "Bearer token")
 }
