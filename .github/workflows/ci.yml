@@ -6,22 +6,28 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions: {}
+
 jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      with:
+        persist-credentials: false
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
       with:
         go-version: stable
 
     - name: Cache Go modules
-      uses: actions/cache@v4
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
         path: ~/go/pkg/mod
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -46,7 +52,7 @@ jobs:
         echo '```' >> $GITHUB_STEP_SUMMARY
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@ab904c41d6ece82784817410c45d8b8c02684457 # v3
       with:
         file: ./coverage.out
         fail_ci_if_error: false
@@ -54,18 +60,22 @@ jobs:
   integration-test:
     name: Integration Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      with:
+        persist-credentials: false
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
       with:
         go-version: stable
 
     - name: Cache Go modules
-      uses: actions/cache@v4
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
         path: ~/go/pkg/mod
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -81,18 +91,22 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      with:
+        persist-credentials: false
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
       with:
         go-version: stable
 
     - name: Cache Go modules
-      uses: actions/cache@v4
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
         path: ~/go/pkg/mod
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -111,7 +125,7 @@ jobs:
         fi
 
     - name: Build
-      run: go build -v ./cmd/loki-mcp
+      run: go build -v .
 
     - name: Check for vulnerabilities
       run: |
@@ -121,18 +135,22 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      with:
+        persist-credentials: false
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
       with:
         go-version: stable
 
     - name: golangci-lint
-      uses: golangci/golangci-lint-action@v9
+      uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9
       with:
         version: latest
         args: --timeout=5m

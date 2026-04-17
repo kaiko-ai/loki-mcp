@@ -7,7 +7,7 @@ before:
 
 builds:
   - id: loki-mcp
-    main: ./cmd/loki-mcp
+    main: .
     binary: loki-mcp
     env:
       - CGO_ENABLED=0

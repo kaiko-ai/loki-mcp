@@ -7,7 +7,7 @@ GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 BINARY_NAME=loki-mcp
 BINARY_UNIX=$(BINARY_NAME)_unix
-MAIN_PATH=./cmd/loki-mcp
+MAIN_PATH=.
 
 .PHONY: all build clean test test-integration test-all run deps tidy lint fmt help
 

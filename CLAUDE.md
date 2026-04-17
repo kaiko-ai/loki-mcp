@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Build the binary
-make build                    # or: go build -o loki-mcp ./cmd/loki-mcp
+make build                    # or: go build -o loki-mcp .
 
 # Run all tests
 make test                     # or: go test -v ./...
@@ -48,7 +48,7 @@ docker-compose up -d
 This is an MCP (Model Context Protocol) server that provides Grafana Loki query tools to AI assistants like Claude Desktop, Cursor, and n8n.
 
 ### Server Entry Point
-`cmd/loki-mcp/main.go` - Creates an MCP server using `github.com/mark3labs/mcp-go` that:
+`main.go` - Creates an MCP server using `github.com/mark3labs/mcp-go` that:
 - Serves via stdio (for Claude Desktop integration)
 - Serves via HTTP with SSE endpoints (`/sse`, `/mcp`) for legacy clients
 - Serves via Streamable HTTP (`/stream`) for modern clients
@@ -93,5 +93,5 @@ The `format` parameter controls output: `raw` (default), `json`, or `text`.
 
 The module is `github.com/kaiko-ai/loki-mcp`. Binary installs as `loki-mcp`:
 ```bash
-go install github.com/kaiko-ai/loki-mcp/cmd/loki-mcp@latest
+go install github.com/kaiko-ai/loki-mcp@latest
 ```

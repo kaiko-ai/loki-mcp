@@ -12,7 +12,7 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o loki-mcp ./cmd/loki-mcp
+RUN CGO_ENABLED=0 GOOS=linux go build -o loki-mcp .
 
 # Use a smaller image for the final stage
 FROM alpine:latest

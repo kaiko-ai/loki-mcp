@@ -9,7 +9,7 @@ A Go-based server implementation for the Model Context Protocol (MCP) with Grafa
 ### Option 1: Go Install
 
 ```bash
-go install github.com/kaiko-ai/loki-mcp/cmd/loki-mcp@latest
+go install github.com/kaiko-ai/loki-mcp@latest
 ```
 
 ### Option 2: Download Release Binary
@@ -21,7 +21,7 @@ Download the pre-built binary for your platform from the [Releases page](https:/
 ```bash
 git clone https://github.com/kaiko-ai/loki-mcp.git
 cd loki-mcp
-go build -o loki-mcp ./cmd/loki-mcp
+go build -o loki-mcp .
 ```
 
 The server communicates using stdin/stdout and SSE following the Model Context Protocol (MCP). This makes it suitable for use with Claude Code, Claude Desktop, and other MCP-compatible clients.
@@ -176,7 +176,7 @@ Trigger → MCP Client Tool (Loki server) → AI Agent (Claude)
 
 The Loki MCP Server uses a modular architecture:
 
-- **Server**: The main MCP server implementation in `cmd/loki-mcp/main.go`
+- **Server**: The main MCP server implementation in `main.go`
 - **Handlers**: Individual tool handlers in `internal/handlers/`
   - `loki.go`: Grafana Loki query functionality
 
