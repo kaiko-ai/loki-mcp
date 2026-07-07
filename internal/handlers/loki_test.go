@@ -122,6 +122,29 @@ func TestFormatLokiResults_EmptyResult(t *testing.T) {
 	}
 }
 
+func TestFormatLokiResults_EmptyJSONWithWarnings(t *testing.T) {
+	result := &loghttp.QueryResponse{
+		Status:   "success",
+		Warnings: []string{"1 line omitted due to detected secrets"},
+		Data: loghttp.QueryResponseData{
+			ResultType: loghttp.ResultTypeStream,
+			Result:     loghttp.Streams{},
+		},
+	}
+
+	output, err := formatLokiResults(result, "json")
+	if err != nil {
+		t.Fatalf("formatLokiResults failed: %v", err)
+	}
+
+	if !strings.Contains(output, `"warnings"`) {
+		t.Errorf("Expected output to contain warnings, got:\n%s", output)
+	}
+	if !strings.Contains(output, "detected secrets") {
+		t.Errorf("Expected output to contain secret omission note, got:\n%s", output)
+	}
+}
+
 // TestFormatLokiResults_RecentTimestamp tests with a very recent timestamp to ensure current dates work
 func TestFormatLokiResults_RecentTimestamp(t *testing.T) {
 	// Use current time

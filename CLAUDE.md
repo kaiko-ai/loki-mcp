@@ -67,10 +67,15 @@ Each tool supports authentication (basic auth or bearer token) and multi-tenancy
 - `LOKI_USERNAME` / `LOKI_PASSWORD` - Basic auth credentials
 - `LOKI_TOKEN` - Bearer token authentication
 - `LOKI_QUERY_FILTER` - LogQL stream selector to restrict all queries (e.g., `{namespace="prod"}`)
+- `LOKI_SECRET_FILTER` - Enable returned log secret filtering (default: true; set false to opt out)
+- `LOKI_OTEL_STDERR` - Enable OpenTelemetry console exporters on stderr
+- Standard `OTEL_*` env vars configure OTLP traces, metrics, and logs
 - `PORT` - HTTP server port (default: 8080)
 
 ### CLI Flags
 - `--query-filter` - LogQL stream selector to restrict all queries (overrides `LOKI_QUERY_FILTER`)
+- `--secret-filter=false` - Opt out of default secret filtering
+- `--otel-stderr` - Emit OpenTelemetry traces, metrics, and logs to stderr for local debugging
 
 ### Query Filter
 The query filter restricts all Loki queries to logs matching the specified LogQL stream selector. This is useful for multi-tenant environments where clients should only access logs from specific namespaces or jobs.
@@ -85,6 +90,14 @@ LOKI_QUERY_FILTER='{namespace="prod"}' ./loki-mcp
 ```
 
 When a filter is active, it is ANDed with client queries. For example, if the filter is `{namespace="prod"}` and a client queries `{job="api"}`, the actual query becomes `{namespace="prod", job="api"}`.
+
+### Secret Filter
+
+Returned log lines are scanned by betterleaks using its default ruleset. Matching lines are omitted entirely, and the output includes a note such as `1 line omitted due to detected secrets`. The filter is enabled by default and can be disabled with `--secret-filter=false` or `LOKI_SECRET_FILTER=false`.
+
+### OpenTelemetry
+
+OpenTelemetry is configured with standard `OTEL_*` variables for OTLP exporters. `--otel-stderr` / `LOKI_OTEL_STDERR=true` enables console exporters that write to stderr, never stdout, so stdio transport remains protocol-safe. Logrus output continues to stderr and is bridged into OTel logs when providers are configured.
 
 ### Output Formats
 The `format` parameter controls output: `raw` (default), `json`, or `text`.

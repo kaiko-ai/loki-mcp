@@ -11,6 +11,7 @@ import (
 
 	"github.com/kaiko-ai/loki-mcp/internal/handlers"
 	"github.com/kaiko-ai/loki-mcp/internal/logging"
+	"github.com/kaiko-ai/loki-mcp/internal/telemetry"
 )
 
 // envFlag registers a string flag on fs, binds it to viper, and appends the
@@ -23,6 +24,16 @@ func envFlag(fs *pflag.FlagSet, name, shorthand, def, usage string) {
 		env = prefix + "_" + env
 	}
 	fs.StringP(name, shorthand, def, fmt.Sprintf("%s [env: %s]", usage, env))
+	_ = viper.BindPFlag(name, fs.Lookup(name))
+}
+
+// envBoolFlag is envFlag's boolean equivalent.
+func envBoolFlag(fs *pflag.FlagSet, name, shorthand string, def bool, usage string) {
+	env := strings.ReplaceAll(strings.ToUpper(name), "-", "_")
+	if prefix := viper.GetEnvPrefix(); prefix != "" {
+		env = prefix + "_" + env
+	}
+	fs.BoolP(name, shorthand, def, fmt.Sprintf("%s [env: %s]", usage, env))
 	_ = viper.BindPFlag(name, fs.Lookup(name))
 }
 
@@ -51,6 +62,23 @@ Use subcommands to run the server in different modes:
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		if err := logging.Init(viper.GetString("log-level"), viper.GetString("log-format")); err != nil {
 			return err
+		}
+
+		if err := telemetry.Initialize(cmd.Context(), telemetry.Config{
+			ServiceVersion: Version,
+			Stderr:         viper.GetBool("otel-stderr"),
+		}); err != nil {
+			return fmt.Errorf("failed to initialize OpenTelemetry: %w", err)
+		}
+		logging.AddHook(telemetry.NewLogrusHook(Version))
+
+		if err := handlers.InitializeSecretFilterConfig(viper.GetBool("secret-filter")); err != nil {
+			return err
+		}
+		if viper.GetBool("secret-filter") {
+			logging.Info("Secret filtering enabled")
+		} else {
+			logging.Warn("Secret filtering disabled")
 		}
 
 		if queryFilter := viper.GetString("query-filter"); queryFilter != "" {
@@ -89,6 +117,10 @@ func init() {
 	pf := rootCmd.PersistentFlags()
 	envFlag(pf, "query-filter", "f", "",
 		"LogQL stream selector to restrict all queries (e.g., {namespace=\"prod\"})")
+	envBoolFlag(pf, "secret-filter", "", true,
+		"Scan returned log lines for secrets and omit matching lines")
+	envBoolFlag(pf, "otel-stderr", "", false,
+		"Enable OpenTelemetry console exporters on stderr")
 	envFlag(pf, "log-level", "l", "info", "Log level: debug, info, warn, error")
 	envFlag(pf, "log-format", "", "text", "Log format: text, json")
 

@@ -34,6 +34,8 @@ const defaultShutdownTimeout = 5 * time.Second
 
 // RunHTTP starts the MCP server in HTTP mode
 func RunHTTP(version string, cfg HTTPConfig) error {
+	defer shutdownTelemetry()
+
 	s := New(version)
 
 	mux := http.NewServeMux()
