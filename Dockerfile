@@ -1,30 +1,28 @@
-FROM golang:1.25-alpine AS builder
+# syntax=docker/dockerfile:1.7
+
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
-# Copy go.mod and go.sum files
 COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
-# Download dependencies
-RUN go mod download
-
-# Copy the source code
 COPY . .
 
-# Build the application
 ARG VERSION=dev
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-s -w -X main.version=${VERSION}" -o loki-mcp .
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -ldflags "-s -w -X main.version=${VERSION}" -o /out/loki-mcp .
 
-# Use a smaller image for the final stage
 FROM alpine:latest
 
 WORKDIR /app
 
-# Copy the binary from the builder stage
-COPY --from=builder /app/loki-mcp .
+COPY --from=builder /out/loki-mcp .
 
-# Expose port for unified MCP server (both SSE and Streamable HTTP)
 EXPOSE 8080
 
-# Set the entry point
 ENTRYPOINT ["./loki-mcp"]
