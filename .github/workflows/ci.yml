@@ -132,7 +132,17 @@ jobs:
     - name: Check for vulnerabilities
       run: |
         go install golang.org/x/vuln/cmd/govulncheck@latest
-        govulncheck ./...
+        set +e
+        govulncheck -format json ./... > govulncheck.json
+        govuln_status=$?
+        set -e
+
+        if [ "$govuln_status" -ne 0 ] && [ "$govuln_status" -ne 3 ]; then
+          cat govulncheck.json
+          exit "$govuln_status"
+        fi
+
+        python3 .github/scripts/filter-govulncheck.py govulncheck.json
 
   lint:
     name: Lint
