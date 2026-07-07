@@ -73,8 +73,33 @@ The Loki tools support the following environment variables:
 - `LOKI_USERNAME`: Default username for basic authentication if not specified in the request
 - `LOKI_PASSWORD`: Default password for basic authentication if not specified in the request
 - `LOKI_TOKEN`: Default bearer token for authentication if not specified in the request
+- `LOKI_QUERY_FILTER`: LogQL stream selector to restrict all queries, for example `{namespace="prod"}`
+- `LOKI_SECRET_FILTER`: Enables returned log secret filtering. Defaults to `true`; set to `false` to opt out.
+- `LOKI_OTEL_STDERR`: Enables OpenTelemetry console exporters on stderr when set to `true`.
+- Standard `OTEL_*` variables: Configure OTLP traces, metrics, and logs export. Console output from this server is only enabled through `LOKI_OTEL_STDERR` so stdout stays reserved for stdio MCP traffic.
 
 **Security Note**: When using authentication environment variables, be careful not to expose sensitive credentials in logs or configuration files. Consider using token-based authentication over username/password when possible.
+
+### Safety Controls
+
+Returned log lines are scanned for secrets by default. If a line matches the default betterleaks ruleset, the entire line is omitted and the tool output includes a note such as `1 line omitted due to detected secrets`. Disable this only for trusted local debugging:
+
+```bash
+loki-mcp --secret-filter=false
+LOKI_SECRET_FILTER=false loki-mcp
+```
+
+Use `--query-filter` or `LOKI_QUERY_FILTER` to force every client query through a LogQL stream selector:
+
+```bash
+loki-mcp --query-filter='{namespace="prod"}'
+```
+
+OpenTelemetry OTLP export is controlled by standard environment variables such as `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_TRACES_EXPORTER`, `OTEL_METRICS_EXPORTER`, and `OTEL_LOGS_EXPORTER`. For local debugging, use stderr console exporters:
+
+```bash
+loki-mcp --otel-stderr
+```
 
 ## Docker Support
 

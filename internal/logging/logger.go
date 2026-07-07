@@ -44,6 +44,11 @@ func Init(level, format string) error {
 	return nil
 }
 
+// AddHook adds a hook to the global logger.
+func AddHook(hook logrus.Hook) {
+	Logger.AddHook(hook)
+}
+
 // Debug logs a debug message
 func Debug(args ...any) {
 	Logger.Debug(args...)

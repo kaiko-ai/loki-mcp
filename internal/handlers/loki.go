@@ -13,6 +13,8 @@ import (
 	"github.com/grafana/loki/v3/pkg/logproto"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/spf13/viper"
+
+	"github.com/kaiko-ai/loki-mcp/internal/telemetry"
 )
 
 // PingLoki verifies connectivity and authentication to Loki by making a
@@ -199,6 +201,7 @@ func HandleLokiQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.Cal
 	// Create Loki client and execute query
 	lokiClient := newLokiClient(&params)
 
+	_, span := telemetry.StartSpan(ctx, "loki.query_range")
 	result, err := lokiClient.QueryRange(
 		params.Query,
 		limit,
@@ -209,12 +212,16 @@ func HandleLokiQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.Cal
 		0,                 // interval (0 = auto)
 		true,              // quiet (no progress output)
 	)
+	span.End()
 	if err != nil {
 		return nil, fmt.Errorf("query execution failed: %w", err)
 	}
 
-	// Apply post-processing filters if any are specified
-	if params.Filter != "" || params.Head > 0 || params.Tail > 0 {
+	var secretSummary SecretFilterSummary
+
+	// Apply post-processing filters if any are specified. Secret filtering runs
+	// before formatting so raw, text, and JSON output all use the sanitized data.
+	if params.Filter != "" || params.Head > 0 || params.Tail > 0 || secretFilteringEnabled() {
 		streams, ok := result.Data.Result.(loghttp.Streams)
 		if ok && len(streams) > 0 {
 			// Collect and sort all entries by timestamp
@@ -223,6 +230,13 @@ func HandleLokiQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.Cal
 			// Apply keyword filter
 			if params.Filter != "" {
 				entries = filterEntries(entries, params.Filter, params.FilterCaseSensitive)
+			}
+
+			// Omit any lines that contain secrets before output limiting.
+			entries, secretSummary = filterSecretEntries(ctx, entries)
+			if secretSummary.LinesOmitted > 0 {
+				telemetry.RecordSecretFiltering(ctx, secretSummary.Findings, secretSummary.LinesOmitted)
+				result.Warnings = append(result.Warnings, formatSecretOmissionNote(secretSummary.LinesOmitted))
 			}
 
 			// Apply head/tail
@@ -240,8 +254,16 @@ func HandleLokiQuery(ctx context.Context, request mcp.CallToolRequest) (*mcp.Cal
 	if err != nil {
 		return nil, fmt.Errorf("failed to format results: %w", err)
 	}
+	if secretSummary.LinesOmitted > 0 && params.Format != "json" {
+		formattedResult += "\n" + formatSecretOmissionNote(secretSummary.LinesOmitted)
+	}
 
 	return mcp.NewToolResultText(formattedResult), nil
+}
+
+func secretFilteringEnabled() bool {
+	cfg := GetSecretFilterConfig()
+	return cfg != nil && cfg.Enabled && cfg.detector != nil
 }
 
 // parseTime parses a time string in various formats
@@ -413,6 +435,13 @@ func formatLokiResults(result *loghttp.QueryResponse, format string) (string, er
 	if len(streams) == 0 {
 		switch format {
 		case "json":
+			if len(result.Warnings) > 0 {
+				jsonBytes, err := json.MarshalIndent(result, "", "  ")
+				if err != nil {
+					return "", fmt.Errorf("failed to marshal JSON: %w", err)
+				}
+				return string(jsonBytes), nil
+			}
 			return "{\"message\": \"No logs found matching the query\"}", nil
 		default:
 			return "No logs found matching the query", nil
